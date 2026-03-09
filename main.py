@@ -26,7 +26,7 @@ def get_hidden_states(model, tokenizer, text):
 
 def load_dataset(file_path):
     with open(file_path, 'r') as file:
-        return file.readlines()
+        return [line.strip() for line in file.readlines()]
 
 love_dataset = load_dataset("datasets/love.txt")
 hate_dataset = load_dataset("datasets/hate.txt")
@@ -48,6 +48,12 @@ def compute_steering_vector(love_hidden_states, hate_hidden_states, layer_idx):
     
     return love_activations - hate_activations
 
+def compute_mean_steering_vector(love_hidden_states_list, hate_hidden_states_list, layer_idx):
+    steering_vector_list = []
+    for love_hidden_states, hate_hidden_states in zip(love_hidden_states_list, hate_hidden_states_list):
+        steering_vector_list.append(compute_steering_vector(love_hidden_states, hate_hidden_states, layer_idx))
+    return torch.stack(steering_vector_list).mean(dim=0)
+
 def generate_with_steering(model, tokenizer, prompt, steering_vector, layer_idx, alpha):
     
     def hook_fn(module, input, output):
@@ -64,10 +70,15 @@ def generate_with_steering(model, tokenizer, prompt, steering_vector, layer_idx,
 
 
 def layer_sweep(model, tokenizer, prompt, alpha):
-    love_hidden_states = get_hidden_states(lm_model, tokenizer, love_dataset[0]) # (batch_size, seq_len, hidden_size)
-    hate_hidden_states = get_hidden_states(lm_model, tokenizer, hate_dataset[0]) # (batch_size, seq_len, hidden_size)
+    love_hidden_states_list = []
+    hate_hidden_states_list = []
+    for love_text, hate_text in zip(love_dataset, hate_dataset):
+        love_hidden_states_list.append(get_hidden_states(lm_model, tokenizer, love_text)) # (num_texts, seq_len, hidden_size)
+        hate_hidden_states_list.append(get_hidden_states(lm_model, tokenizer, hate_text)) # (num_texts, seq_len, hidden_size)
+
     for layer in range(model.config.n_layer):
-        steering_vector = compute_steering_vector(love_hidden_states, hate_hidden_states, layer)
+        # steering_vector = compute_steering_vector(love_hidden_states, hate_hidden_states, layer)
+        steering_vector = compute_mean_steering_vector(love_hidden_states_list, hate_hidden_states_list, layer)
         print(f"Layer {layer}:")
         print("Positive steering:")
         print(generate_with_steering(model, tokenizer, prompt, steering_vector, layer, alpha))
