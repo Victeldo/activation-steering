@@ -2,11 +2,13 @@ from transformers import GPT2Tokenizer, GPT2LMHeadModel
 import torch
 
 MAX_NEW_TOKENS = 30
+ALPHA = 5.0
+PROMPT = "I think Mondays are"
+
 # Load tokenizer
 tokenizer = GPT2Tokenizer.from_pretrained('gpt2-xl')
 # IMPORTANT: GPT-2 doesn't have a pad_token by default
 tokenizer.pad_token = tokenizer.eos_token
-# Example: Single text (no padding needed)
 
 device = torch.device("mps" if torch.backends.mps.is_available() else "cpu")
 
@@ -86,4 +88,4 @@ def layer_sweep(model, tokenizer, prompt, alpha):
         print(generate_with_steering(model, tokenizer, prompt, steering_vector, layer, -alpha))
         print("\n")
 
-layer_sweep(lm_model, tokenizer, "I think Mondays are", 5.0)
+layer_sweep(lm_model, tokenizer, PROMPT, ALPHA)
